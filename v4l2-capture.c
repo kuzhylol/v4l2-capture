@@ -22,7 +22,7 @@ static bool v4l2_is_polling;
 
 static struct v4l2_frame_buffer *fb;
 
-static int v4l2_push_frame(int fd, const unsigned char *payload, size_t size)
+static int v4l2_push_frame(int fd, const unsigned char *payload, ssize_t size)
 {
 	ssize_t n = write(fd, payload, size);
 
@@ -45,7 +45,7 @@ static void v4l2_grab_frame(int sig)
 		v4l2_frame_ready = true;
 }
 
-static int xioctl(int vfd, int req, void *arg)
+static int xioctl(int vfd, size_t req, void *arg)
 {
 	int rc;
 
