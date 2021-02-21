@@ -1,4 +1,4 @@
-#include "v4l2_capture.h"
+#include "v4l2-capture.h"
 
 #include <stdio.h>
 #include <stdbool.h>
