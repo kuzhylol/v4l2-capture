@@ -292,7 +292,7 @@ static void v4l2_close_device(int *vfd)
 		free(vfd);
 }
 
-static void v4l2_poll_frame(void *pfd)
+static void *v4l2_poll_frame(void *pfd)
 {
 	int rc = EXIT_SUCCESS;
 	int *vfd = (int *)pfd;
@@ -327,6 +327,7 @@ static void v4l2_poll_frame(void *pfd)
 	v4l2_close_device(vfd);
 
 	fprintf(stderr, "V4L2 device has been released\n");
+	return NULL;
 }
 
 struct v4l2_frame_buffer *v4l2_start_video_capturing(const char *video_dev)
@@ -360,7 +361,7 @@ struct v4l2_frame_buffer *v4l2_start_video_capturing(const char *video_dev)
 
 		rc = pthread_create((pthread_t *)&v4l2_thread,
 				   NULL,
-				   (void *)v4l2_poll_frame,
+				   v4l2_poll_frame,
 				   (void *)vfd);
 
 		if (rc < 0)
