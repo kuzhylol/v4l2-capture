@@ -376,10 +376,12 @@ struct v4l2_frame_buffer *v4l2_start_video_capturing(const char *video_dev)
 	return NULL;
 }
 
-int main(int argc, char **argv)
+int main(int argc, char *argv[])
 {
 	int rc = EXIT_FAILURE;
-	int record_fd = open("demo.raw", O_CREAT | O_TRUNC | O_RDWR | O_NONBLOCK, 0644);
+	const char *raw_file_default = "demo.raw";
+
+	int record_fd = open(argc > 1 ? argv[1] : raw_file_default, O_CREAT | O_TRUNC | O_RDWR | O_NONBLOCK, 0644);
 
 	fb = v4l2_start_video_capturing(V4L2_DEFAULT_VIDEO_DEVICE);
 
