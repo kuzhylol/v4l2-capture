@@ -367,22 +367,33 @@ struct v4l2_frame_buffer *v4l2_start_video_capturing(const char *video_dev)
 			fprintf(stderr, "Not able to start video thread\n");
 	}
 
-	return fb;
+	if (!rc)
+		return fb;
+
+	v4l2_release_device(fb);
+	v4l2_close_device(vfd);
+	return NULL;
 }
 
 int main(int argc, char **argv)
 {
+	int rc = EXIT_FAILURE;
 	int record_fd = open("demo.raw", O_CREAT | O_TRUNC | O_RDWR | O_NONBLOCK, 0644);
 
 	fb = v4l2_start_video_capturing(V4L2_DEFAULT_VIDEO_DEVICE);
 
-	do {
-		if (v4l2_frame_ready == true) {
-			v4l2_push_frame(record_fd, fb[fb->index].head, fb->len);
-			v4l2_frame_ready = false;
-		}
-	} while (v4l2_is_polling == true);
+	if (fb != NULL) {
+		do {
+			if (v4l2_frame_ready == true) {
+				v4l2_push_frame(record_fd, fb[fb->index].head, fb->len);
+				v4l2_frame_ready = false;
+			}
+		} while (v4l2_is_polling == true);
+
+		rc = EXIT_SUCCESS;
+	}
+
 
 	close(record_fd);
-	return 0;
+	return rc;
 }
