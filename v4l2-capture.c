@@ -118,7 +118,6 @@ static int v4l2_set_format(int *vfd)
 		rc = EXIT_FAILURE;
 	}
 
-	fprintf(stderr, "[%d] V4L2 parameters were set\n", *vfd);
 	return rc;
 }
 
