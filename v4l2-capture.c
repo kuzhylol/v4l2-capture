@@ -20,31 +20,6 @@
 bool v4l2_frame_ready;
 static bool v4l2_is_polling;
 
-struct v4l2_mplane_buffer {
-	void    *head[V4L2_REQUESTED_PLANES_NUM];          // Beginning of valid buffer
-	size_t  length[V4L2_REQUESTED_PLANES_NUM];         // Size of whole buffer
-};
-
-struct v4l2_frame_buffer {
-	struct  v4l2_mplane_buffer mp_buff;
-	size_t  index;          // Id number of the valid buffer
-	size_t  bytes_used;     // Number of used bytes, may be less then page_size
-};
-
-struct v4l2_camera_params {
-	size_t width;
-	size_t height;
-	size_t pixel_format;
-	size_t field;
-	enum   v4l2_buf_type type;
-};
-
-struct v4l2_camera {
-	int vfd;
-	struct v4l2_frame_buffer *fb;
-	struct v4l2_camera_params params;
-};
-
 static void v4l2_poll_exit(int sig)
 {
 	if (sig == SIGINT)
