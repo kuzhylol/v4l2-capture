@@ -379,10 +379,12 @@ static int v4l2_dequeue_enqueue_buff(struct v4l2_camera *c)
 
 static void v4l2_close_device(struct v4l2_camera *c)
 {
+	int rc;
+
 	if (c == NULL)
 		return;
 
-	int rc = close(c->vfd);
+	rc = close(c->vfd);
 
 	if (rc == -1)
 		fprintf(stderr, "v4l2 device closing failure: %d, %s\n", errno, strerror(errno));
