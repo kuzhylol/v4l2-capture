@@ -40,6 +40,7 @@ struct v4l2_camera {
 };
 
 extern bool v4l2_frame_ready;
+extern bool v4l2_is_polling;
 
 int v4l2_try_set_format(int *vfd);
 struct v4l2_camera *v4l2_start_video_capturing(const char *video_dev);

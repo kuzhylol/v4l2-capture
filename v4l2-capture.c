@@ -18,7 +18,7 @@
 #include <linux/videodev2.h>
 
 bool v4l2_frame_ready;
-static bool v4l2_is_polling;
+bool v4l2_is_polling;
 
 static void v4l2_poll_exit(int sig)
 {
