@@ -539,7 +539,7 @@ int main(int argc, char *argv[])
 	if (c != NULL && c->fb != NULL) {
 		do {
 			if (v4l2_frame_ready == true) {
-				v4l2_push_frame(record_fd, c->fb[c->fb->index].mp_buff.head[0], c->fb->bytes_used);
+				v4l2_push_frame(record_fd, c->fb[c->fb->index].mp_buff.head[0], 640*480);
 				v4l2_frame_ready = false;
 			}
 		}
