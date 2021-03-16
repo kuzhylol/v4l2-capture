@@ -6,7 +6,7 @@
 
 #define V4L2_DEFAULT_VIDEO_DEVICE "/dev/video0"
 
-#define V4L2_REQUESTED_BUFFERS_NUM      6
+#define V4L2_REQUESTED_BUFFERS_NUM      4
 #define V4L2_REQUESTED_PLANES_NUM       1
 
 #define V4L2_WIDTH_DEFAULT              640
@@ -14,13 +14,13 @@
 #define V4L2_PIXEL_FORMAT_DEFAULT       V4L2_PIX_FMT_YUYV
 #define V4L2_FIELD_DEFAULT              V4L2_FIELD_ANY
 
-struct v4l2_mplane_buffer {
-	void    *head[V4L2_REQUESTED_PLANES_NUM];          // Beginning of valid buffer
-	size_t  length[V4L2_REQUESTED_PLANES_NUM];         // Size of whole buffer
+struct frame {
+	void    **head;          // Beginning of valid buffer
+	size_t  *length;         // Size of whole buffer
 };
 
 struct v4l2_frame_buffer {
-	struct  v4l2_mplane_buffer mp_buff;
+	struct  frame f;
 	size_t  index;          // Id number of the valid buffer
 	size_t  bytes_used;     // Number of used bytes, may be less then page_size
 };

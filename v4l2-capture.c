@@ -60,8 +60,7 @@ static struct v4l2_camera *v4l2_create_camera(void)
 
 	if (camera == NULL)
 		fprintf(stderr, "Not able to allocate V4L2 camera device\n");
-
-	if (camera != NULL) {
+	else {
 		camera->params.width = V4L2_WIDTH_DEFAULT;
 		camera->params.height = V4L2_HEIGHT_DEFAULT;
 		camera->params.pixel_format = V4L2_PIXEL_FORMAT_DEFAULT;
@@ -74,16 +73,15 @@ static int v4l2_open_device(const char *dev_name)
 {
 	int vfd = open(dev_name, O_RDWR | O_NONBLOCK, 0);
 
-	if (vfd == -1) {
-		fprintf(stderr, "Cannot open '%s': %d, %s\n",
-		       dev_name, errno, strerror(errno));
-	}
+	if (vfd == -1)
+		fprintf(stderr, "Cannot open '%s': %d, %s\n", dev_name, errno, strerror(errno));
+	else
+		fprintf(stderr, "[%d] V4L2 device was opened: %s\n", vfd, dev_name);
 
-	fprintf(stderr, "[%d] V4L2 device was opened: %s\n", vfd, dev_name);
 	return vfd;
 }
 
-static int v4l2_query_capabilities(struct v4l2_camera *c)
+static int v4l2_pixel_type_select(struct v4l2_camera *c)
 {
 	int rc = EXIT_SUCCESS;
 	struct v4l2_capability cap;
@@ -155,30 +153,62 @@ static int v4l2_set_format(struct v4l2_camera *c)
 		rc = xioctl(c->vfd, VIDIOC_S_FMT, &fmt);
 		if (rc == -1)
 			fprintf(stderr, "[%d] VIDIOC_S_FMT failed\n", c->vfd);
-		else
-			fprintf(stderr, "[%d] V4L2 format was set\n", c->vfd);
+		else {
+			fprintf(stdout, "[%d] V4L2 width was set: %zu\n", c->vfd, c->params.width);
+			fprintf(stdout, "[%d] V4L2 height was set %zu\n", c->vfd, c->params.height);
+			fprintf(stdout, "[%d] V4L2 field was set %zu\n", c->vfd, c->params.field);
+			fprintf(stdout, "[%d] V4L2 type was set %u\n", c->vfd, c->params.type);
+		}
 	}
 
 	return rc;
 }
 
+static void v4l2_mplanes_destroy(struct v4l2_frame_buffer *fb)
+{
+	for (size_t n_buff = 0; n_buff < V4L2_REQUESTED_BUFFERS_NUM; n_buff++) {
+		free(fb[n_buff].f.head);
+		free(fb[n_buff].f.length);
+	}
+}
+
 static struct v4l2_frame_buffer *v4l2_create_buffs(void)
 {
-	struct v4l2_frame_buffer *buff = calloc(V4L2_REQUESTED_BUFFERS_NUM, sizeof(*buff));
+	struct v4l2_frame_buffer *buffs = calloc(V4L2_REQUESTED_BUFFERS_NUM, sizeof(*buffs));
 
-	if (buff == NULL)
+	if (buffs == NULL)
 		fprintf(stderr, "Not able to allocate %d video buffers\n", V4L2_REQUESTED_BUFFERS_NUM);
 
-	return buff;
+	if (buffs != NULL) {
+		void *ptr;
+		for (int i = 0; i < V4L2_REQUESTED_BUFFERS_NUM; i++) {
+			ptr = calloc(V4L2_REQUESTED_PLANES_NUM, sizeof(*(buffs[i].f.head)));
+			if (ptr == NULL)
+				goto mplane_alloc_err;
+			else
+				buffs[i].f.head = ptr;
+
+			ptr = calloc(V4L2_REQUESTED_PLANES_NUM, sizeof(*(buffs[i].f.length)));
+			if (ptr == NULL)
+				goto mplane_alloc_err;
+			else
+				buffs[i].f.length = ptr;
+		}
+	}
+	return buffs;
+
+mplane_alloc_err:
+	fprintf(stderr, "Not sufficient memory for V4L2 buffers\n");
+	v4l2_mplanes_destroy(buffs);
+	free(buffs);
+	return NULL;
 }
 
 static int v4l2_mmap_device(struct v4l2_camera *c)
 {
 	int rc = EXIT_SUCCESS;
-	void *m_ptr = MAP_FAILED;
 	struct v4l2_requestbuffers req;
 	bool is_mplanes = false;
-	size_t length = 0;
 	size_t planes_num = 1;
 
 	memset(&req, 0, sizeof(req));
@@ -196,6 +226,7 @@ static int v4l2_mmap_device(struct v4l2_camera *c)
 	if (rc == -1)
 		fprintf(stderr, "VIDIOC_REQBUFS failed: %d, %s\n", errno, strerror(errno));
 
+	struct v4l2_frame_buffer *fb = c->fb;
 	if (!rc) {
 		for (size_t n_buff = 0; n_buff < req.count; n_buff++) {
 			struct v4l2_buffer v4l2_buff;
@@ -224,8 +255,11 @@ static int v4l2_mmap_device(struct v4l2_camera *c)
 				return EXIT_FAILURE;
 			}
 
+			fprintf(stdout, "[%d] V4L2 query buff\n", c->vfd);
 			fprintf(stdout, "[%d] V4L2 buff flag: 0x%x \n", c->vfd, v4l2_buff.flags);
 
+			size_t length = 0;
+			void *m_ptr = MAP_FAILED;
 			for (size_t n_plane = 0; n_plane < planes_num; n_plane++) {
 				if (is_mplanes) {
 					length = v4l2_buff.m.planes[n_plane].length;
@@ -234,12 +268,11 @@ static int v4l2_mmap_device(struct v4l2_camera *c)
 					fprintf(stdout, "[%d] V4L2 mmap plane[%zu] length: %zu\n", c->vfd, n_plane, length);
 					fprintf(stdout, "[%d] V4L2 mmap plane[%zu] offset: 0x%p\n", c->vfd, n_plane, m_ptr);
 
-					c->fb[n_buff].mp_buff.length[n_plane] = length;
-
+					fb[n_buff].f.length[n_plane] = length;
 				} else {
 					length = v4l2_buff.length;
 					m_ptr = mmap(NULL, length, PROT_READ | PROT_WRITE, MAP_SHARED, c->vfd, v4l2_buff.m.offset);
-					c->fb[n_buff].mp_buff.length[n_plane] = length;
+					fb[n_buff].f.length[n_plane] = length;
 				}
 
 				if (m_ptr == MAP_FAILED) {
@@ -247,7 +280,7 @@ static int v4l2_mmap_device(struct v4l2_camera *c)
 					return EXIT_FAILURE;
 				}
 
-				c->fb[n_buff].mp_buff.head[n_plane] = m_ptr;
+				fb[n_buff].f.head[n_plane] = m_ptr;
 			}
 		}
 		fprintf(stderr, "[%d] V4L2 buffers were mmaped\n", c->vfd);
@@ -408,16 +441,19 @@ static void v4l2_release_device(struct v4l2_camera *c)
 	if (c->params.type == V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE)
 		planes_num = V4L2_REQUESTED_PLANES_NUM;
 
+	struct v4l2_frame_buffer *fb = c->fb;
 	for (size_t n_buff = 0; n_buff < V4L2_REQUESTED_BUFFERS_NUM; n_buff++) {
 		for (size_t n_plane = 0; n_plane < planes_num; n_plane++) {
-			rc = munmap(c->fb[n_buff].mp_buff.head[n_plane], c->fb[n_buff].mp_buff.length[n_plane]);
+			rc = munmap(fb[n_buff].f.head[n_plane], fb[n_buff].f.length[n_plane]);
 			if (rc == -1)
 				fprintf(stderr, "V4L2 munmap failed: %d, %s\n", errno, strerror(errno));
-			fprintf(stdout, "V4L2 munmap %p with length %zu \n", c->fb[n_buff].mp_buff.head[n_plane], c->fb[n_buff].mp_buff.length[n_plane]);
+			fprintf(stdout, "V4L2 munmap %p with length %zu \n", fb[n_buff].f.head[n_plane], fb[n_buff].f.length[n_plane]);
 		}
 	}
 
-	free(c->fb);
+	v4l2_mplanes_destroy(fb);
+
+	free(fb);
 	free(c);
 
 	fprintf(stderr, "V4L2 device released\n");
@@ -469,9 +505,17 @@ struct v4l2_camera *v4l2_start_video_capturing(const char *video_dev)
 	pthread_t v4l2_thread;
 
 	camera = v4l2_create_camera();
-
 	if (camera == NULL)
 		return NULL;
+
+	camera->vfd = v4l2_open_device(video_dev ? video_dev : V4L2_DEFAULT_VIDEO_DEVICE);
+
+	if (camera->vfd == -1) {
+		free(camera);
+		return NULL;
+	}
+
+	rc = v4l2_pixel_type_select(camera);
 
 	camera->fb = v4l2_create_buffs();
 
@@ -479,16 +523,6 @@ struct v4l2_camera *v4l2_start_video_capturing(const char *video_dev)
 		free(camera);
 		return NULL;
 	}
-
-	camera->vfd = v4l2_open_device(video_dev ? video_dev : V4L2_DEFAULT_VIDEO_DEVICE);
-
-	if (camera->vfd == -1) {
-		free(camera->fb);
-		free(camera);
-		return NULL;
-	}
-
-	rc = v4l2_query_capabilities(camera);
 
 	if (!rc)
 		rc = v4l2_set_format(camera);
@@ -536,10 +570,21 @@ int main(int argc, char *argv[])
 	struct v4l2_camera *c;
 
 	c = v4l2_start_video_capturing(V4L2_DEFAULT_VIDEO_DEVICE);
+
 	if (c != NULL && c->fb != NULL) {
+		struct v4l2_frame_buffer *fb = c->fb;
 		do {
 			if (v4l2_frame_ready == true) {
-				v4l2_push_frame(record_fd, c->fb[c->fb->index].mp_buff.head[0], 640*480);
+				switch(c->params.type) {
+				case V4L2_BUF_TYPE_VIDEO_CAPTURE:
+					v4l2_push_frame(record_fd, fb->f.head[0], fb->bytes_used);
+				break;
+				case V4L2_BUF_TYPE_VIDEO_CAPTURE_MPLANE:
+					v4l2_push_frame(record_fd, fb->f.head[0], c->params.width * c->params.height);
+				break;
+				default:
+				break;
+				}
 				v4l2_frame_ready = false;
 			}
 		}
